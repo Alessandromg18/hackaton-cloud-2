@@ -1,0 +1,114 @@
+org: alessandromonzon
+service: api-usuarios
+
+provider:
+  name: aws
+  runtime: python3.8
+  memorySize: 1024
+  timeout: 20
+  iam:
+    role: arn:aws:iam::186010442777:role/LabRole
+  environment:
+    DYNAMODB_TABLE_USUARIOS: ${sls:stage}-t_usuarios
+    DYNAMODB_TABLE_TOKENS: ${sls:stage}-t_tokens_acceso
+    DYNAMODB_TABLE_INCIDENCIAS: ${sls:stage}-t_incidencias
+
+functions:
+  # Registro de usuario
+  registerUser:
+    handler: register_user.register_user
+    events:
+      - http:
+          path: /users/register
+          method: post
+          cors: true
+          integration: lambda
+
+  # Login de usuario
+  loginUser:
+    handler: login_user.login_user
+    events:
+      - http:
+          path: /users/login
+          method: post
+          cors: true
+          integration: lambda
+
+  # Validación de token
+  validateToken:
+    handler: validate_token.validate_token
+    events:
+      - http:
+          path: /users/validate-token
+          method: get
+          cors: true
+          integration: lambda
+
+  # Crear incidencia (solo estudiantes)
+  createIncident:
+    handler: create_incident.create_incident
+    events:
+      - http:
+          path: /incidents/create
+          method: post
+          cors: true
+          integration: lambda
+
+  # Ver historial de incidencias (solo roles no estudiantes)
+  getIncidentHistory:
+    handler: get_incidents_history.get_incidents_history
+    events:
+      - http:
+          path: /incidents/history
+          method: get
+          cors: true
+          integration: lambda
+
+resources:
+  Resources:
+    # Tabla para almacenar usuarios
+    UsuariosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE_USUARIOS}
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S  # Correo electrónico
+          - AttributeName: user_id
+            AttributeType: S  # UUID del usuario
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH  # Clave de partición (correo electrónico)
+          - AttributeName: user_id
+            KeyType: RANGE  # Clave de ordenamiento (UUID)
+        BillingMode: PAY_PER_REQUEST
+
+    # Tabla para almacenar tokens
+    TokensTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE_TOKENS}
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S  # Token
+          - AttributeName: token_id
+            AttributeType: S  # UUID del token
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH  # Clave de partición (Token)
+          - AttributeName: token_id
+            KeyType: RANGE  # Clave de ordenamiento (UUID)
+        BillingMode: PAY_PER_REQUEST
+
+    # Tabla para almacenar incidencias
+    IncidenciasTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE_INCIDENCIAS}
+        AttributeDefinitions:
+          - AttributeName: incidente_id
+            AttributeType: S  # ID de la incidencia
+        KeySchema:
+          - AttributeName: incidente_id
+            KeyType: HASH  # Clave de partición (ID de la incidencia)
+        BillingMode: PAY_PER_REQUEST
